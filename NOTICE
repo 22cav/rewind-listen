@@ -1,0 +1,13 @@
+Rewind-Listen: streaming a spoken question into an unmodified LLM
+Copyright 2026 22cav
+
+Licensed under the Apache License, Version 2.0 (LICENSE).
+
+Third-party material in this repository:
+- listen/mcq.py ports VoiceBench's multiple-choice answer extraction (MatthewCYM/VoiceBench, src/evaluator/mcq.py,
+  Apache-2.0).
+- samples/question.wav is a spoken question from VoiceBench (hlt-lab/voicebench, OpenBookQA subset, Apache-2.0).
+- bench/librittsr50.jsonl lists 50 LibriTTS-R test-clean utterances with their texts (LibriTTS-R, CC-BY-4.0).
+
+Models downloaded at run time are not part of this repository and keep their own licenses, among them NVIDIA
+Parakeet (CC-BY-4.0) and the chosen LLM (for example Qwen3, Apache-2.0).

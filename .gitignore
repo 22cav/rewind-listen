@@ -1,0 +1,15 @@
+# Models download to the Hugging Face cache; data, logs and results live outside the repo.
+*.safetensors
+*.npz
+*.wav
+*.flac
+*.mp3
+*.ogg
+!samples/*.wav
+/data/
+/logs/
+.venv
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.DS_Store

@@ -1,0 +1,54 @@
+# Runs on Apple Silicon (macOS >= 14) with MLX; no PyTorch. Setup: ./run.sh setup (or scripts/setup.sh).
+[project]
+name = "rewind-listen"
+version = "0.1.0"
+description = "Streaming a spoken question into an unmodified LLM through a rewindable KV cache (MLX, Apple Silicon)"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Matteo Caviglia" }]
+keywords = ["speech", "llm", "streaming", "kv-cache", "mlx", "turn-taking"]
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "mlx>=0.32",
+    "mlx-lm>=0.31",
+    "parakeet-mlx>=0.5.3",   # the recognizer (NVIDIA Parakeet in MLX)
+    "numpy",
+    "soundfile",             # audio files in
+    "scipy",                 # polyphase resampling to 16 kHz
+    "sounddevice",           # microphone input (./run.sh talk)
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "ruff>=0.16.9",
+    "transformers",          # tests only: the real Qwen3 tokenizer check, skipped when not cached
+    "pyarrow",               # bench/data.py: reading the dataset parquet files
+    "num2words",             # bench/prompts.py: numbers in words (the spoken form)
+]
+
+[project.urls]
+Repository = "https://github.com/22cav/rewind-listen"
+
+[tool.uv]
+package = false
+default-groups = ["dev"]
+environments = ["sys_platform == 'darwin' and platform_machine == 'arm64'"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+# pyflakes, pycodestyle, import order, bugbear, pyupgrade
+select = ["F", "E", "W", "I", "B", "UP"]
+ignore = [
+    "E731",  # lambda assignments are used deliberately for short local helpers
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["listen"]
+known-third-party = ["mlx"]

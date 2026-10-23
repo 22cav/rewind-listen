@@ -1,0 +1,203 @@
+"""VoiceBench's multiple-choice scoring, ported from its evaluator (MatthewCYM/VoiceBench, src/evaluator/mcq.py at
+commit b56154172f2a57a43d29005de7d0471d748d70d1, Apache-2.0), so results here are scored as VoiceBench scores them.
+
+The official evaluator lowercases the answer, takes the first of its templates (in order) that contains a choice,
+then an answer that is or starts with a bare letter; an answer with no choice found is replaced by a random letter.
+Here that last step is explicit: `extract` returns None, and `scores` reports both conventions:
+  strict     an unparsed answer is wrong
+  official   an unparsed answer earns 1/4, the expectation of VoiceBench's random letter (deterministic)
+"""
+
+CHOICES = "abcd"
+
+TEMPLATES = (  # verbatim, in the official order
+    '答案是[CHOICE]',
+    '答案是 [CHOICE]',
+    '答案是选项[CHOICE]',
+    '答案应该是[CHOICE]',
+    '答案应该是 [CHOICE]',
+    '答案就是选项[CHOICE]',
+    '答案是‘[CHOICE]',
+    '是[CHOICE]：',
+    '答案选[CHOICE]',
+    '[CHOICE]是正确',
+    '选项[CHOICE]是最合适的',
+    'answer is: **[CHOICE]',
+    'answer is **[CHOICE]',
+    'the answer to the question is: **[CHOICE]',
+    'the answer to the multiple-choice question is **[CHOICE]',
+    "the answer is '[CHOICE]'",
+    '[CHOICE] is the best answer',
+    'the answer is [CHOICE]',
+    'the correct answer is [CHOICE]',
+    'would select [CHOICE]',
+    'would choose [CHOICE]',
+    'would select option [CHOICE]',
+    'would choose option [CHOICE]',
+    'is "[CHOICE]"',
+    'is "[CHOICE].',
+    'is: **[CHOICE])',
+    'is **[CHOICE],',
+    'is **[CHOICE]:',
+    'is **[CHOICE])',
+    'is: **[CHOICE].',
+    'is: **[CHOICE]:',
+    'is **[CHOICE].',
+    'be **[CHOICE],',
+    'is: **[CHOICE]**',
+    'is therefore option **[CHOICE]:',
+    'is: \n\n**[CHOICE])',
+    'as **[CHOICE]:',
+    'be **[CHOICE])',
+    'be **[CHOICE]:',
+    'is: \n\n**[CHOICE]**',
+    'suggests **[CHOICE])',
+    'be option **[CHOICE]:',
+    'with **[CHOICE])',
+    'is typically "[CHOICE])',
+    'be to **[CHOICE])',
+    'is: \n\n[CHOICE])',
+    'is likely to be: **[CHOICE].',
+    'is **[CHOICE] (',
+    'is option **[CHOICE]**',
+    'is likely **[CHOICE]**',
+    'is:\n**[CHOICE].',
+    'is:\n\n**[CHOICE].',
+    'would be [CHOICE]',
+    'would be option [CHOICE]',
+    'would be ([CHOICE])',
+    'would be option ([CHOICE])',
+    'is [CHOICE],',
+    'is typically [CHOICE],',
+    'is typically [CHOICE].',
+    "i'd say [CHOICE].",
+    'option [CHOICE].',
+    'option [CHOICE]:',
+    'option [CHOICE],',
+    'the answer is:\n**[CHOICE]',
+    'is [CHOICE]:',
+    'is [CHOICE].',
+    'is [CHOICE],',
+    'is: [CHOICE].',
+    'is ([CHOICE])',
+    'is:\n**[CHOICE])',
+    'is likely **[CHOICE]:',
+    'is the **[CHOICE])',
+    ':\n[CHOICE].',
+    ':\n[CHOICE])',
+    ':\n[CHOICE],',
+    ': \n[CHOICE].',
+    ':  \n[CHOICE].',
+    ':\n\n[CHOICE].',
+    ':\n\n[CHOICE])',
+    'is most likely **[CHOICE]:',
+    ':\n\n[CHOICE],',
+    ': \n\n[CHOICE].',
+    'is option [CHOICE],',
+    '([CHOICE]) would be',
+    'is ([CHOICE]).',
+    'is [CHOICE])',
+    'is: [CHOICE])',
+    'is:\n\n[CHOICE]:',
+    'is: **[CHOICE],',
+    '(option [CHOICE])',
+    'answer is ([CHOICE])',
+    'select option "[CHOICE]"',
+    'is: [CHOICE]',
+    'is typically **[CHOICE],',
+    'is **[CHOICE]**',
+    "is likely '[CHOICE]'",
+    "is option '[CHOICE]'",
+    'is:\n**[CHOICE]:',
+    'is \\( \\boxed{[CHOICE] ',
+    "would be '[CHOICE]'",
+    'is the **[CHOICE]** ',
+    'question is [CHOICE] (',
+    'is:\n\n**[CHOICE])',
+    'closest to option **[CHOICE]**',
+    'is most likely **[CHOICE])',
+    "the answer to the question is '[CHOICE]'",
+    'question is **[CHOICE]**',
+    "known as '[CHOICE]'",
+    "is '[CHOICE])",
+    'is typically **[CHOICE]:',
+    'is \\( \\boxed{\\text{[CHOICE]}} \\)',
+    'is \\( \\text{[CHOICE]) }',
+    'is \\( \\text{[CHOICE]} \\)',
+    'is \\( \\text{[CHOICE]:',
+    'is \\( \\text{[CHOICE])',
+    'is \\(\\text{[CHOICE].',
+    'is:\n\n**[CHOICE]',
+    'is \\( \\text{[CHOICE].}',
+    'is \\( \\text{[CHOICE].',
+    'is \\( \\boxed{[CHOICE]}',
+    'is:\n\\[ \\boxed{\\text{[CHOICE]}}',
+    'is:\n\\[ \\text{[CHOICE])',
+    'is:\n\n\\[ \\text{[CHOICE])',
+    'is \\( \\textbf{[CHOICE])',
+    'is \\( \\text{[CHOICE]}',
+    'is: \\( \\text{[CHOICE].',
+    'corresponds to:\n- **[CHOICE]:',
+    'would be: **[CHOICE]**.',
+    'is \\( [CHOICE] \\)',
+    'is:\n**[CHOICE] ',
+    'corresponds to option **[CHOICE]**',
+    'be **[CHOICE]**',
+    'be: \n\n[CHOICE])',
+    'is:\n\\[ \\boxed{[CHOICE]}',
+    'is:  \n**[CHOICE]:',
+    'is: \\( \\text{[CHOICE])',
+    'is likely: **[CHOICE],',
+    'is } \\mathbf{[CHOICE].',
+    'is \\( \\boxed{[CHOICE])',
+    'is \\( \\textbf{[CHOICE]}',
+    'is \\([CHOICE]\\)',
+    'is:\n  \n**[CHOICE]:',
+    'is option **[CHOICE] ',
+    'is:\n\\( \\textbf{[CHOICE].',
+    'is \\( \\mathbf{[CHOICE]}',
+    'was option **[CHOICE]**',
+    'is likely "[CHOICE])',
+    'option **[CHOICE]:',
+    'is "[CHOICE])',
+    'is most likely **[CHOICE],',
+    'is often **[CHOICE]:',
+    'is:  \n[CHOICE])',
+    ' [CHOICE].',
+    ' [CHOICE],',
+    ' [CHOICE]:',
+    ' [CHOICE])',
+    '**[CHOICE].',
+    '**[CHOICE])',
+    '"[CHOICE].',
+    '"[CHOICE],',
+    '"[CHOICE]:',
+    '([CHOICE])',
+    '"[CHOICE]"',
+)
+
+
+def extract(answer: str) -> str | None:
+    """The chosen letter (A-D) under VoiceBench's rules, or None where VoiceBench would guess at random."""
+    r = answer.lower()
+    if r.startswith(("<1>", "<2>", "<3>")):
+        r = r[3:].strip()
+    for template in TEMPLATES:
+        for c in CHOICES:
+            if template.replace("[CHOICE]", c) in r:
+                return c.upper()
+    for c in CHOICES:
+        if r == c or any(r.startswith(c + p) for p in ".,:)"):
+            return c.upper()
+    if "would be a." in r or 'would be "a.' in r:
+        return "A"
+    return None
+
+
+def scores(answers: list[str], references: list[str]) -> dict:
+    """Accuracy under both conventions, and the share of answers with no choice found."""
+    picked = [extract(a) for a in answers]
+    n = len(picked)
+    right = sum(p == r for p, r in zip(picked, references, strict=True))
+    unparsed = sum(p is None for p in picked)
+    return {"strict": right / n, "official": (right + unparsed / 4) / n, "unparsed": unparsed / n, "n": n}
